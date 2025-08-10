@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Publisher Record Cards</title>
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Firebase Modular SDKs are imported in app.js -->
+</head>
+<body>
+  <header class="top-bar">
+    <div class="header-content">
+      
+      <h1>Congregation Publisher Records</h1>
+    </div>
+  </header>
+
+  <div class="container">
+    <aside class="sidebar">
+      <h2>Publishers</h2>
+      <input type="file" accept=".csv" onchange="loadCSV(event)" />
+      <input type="text" id="search-bar" placeholder="Search by name..." oninput="filterPublishers()" />
+      <button onclick="createNewRecord()">New Publisher</button>
+      <ul id="publisher-list"></ul>
+    </aside>
+
+    <main class="record-card" id="record-view">
+      <h2>Publisher Record</h2>
+      <form id="record-form" onsubmit="saveRecord(event)">
+        <div class="personal-info">
+          <label>Name: <input type="text" name="name" /></label>
+          <label>Gender:
+            <select name="gender">
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+            </select>
+          </label>
+          <label>Date of Birth: <input type="date" name="dob" /></label>
+          <label>Date of Baptism: <input type="date" name="dop" /></label>
+          <label>Role:
+            <select name="role">
+              <option>None</option>
+              <option>Elder</option>
+              <option>Ministerial Servant</option>
+              <option>Regular Pioneer</option>
+              <option>Special Pioneer</option>
+              <option>Field Missionary</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="monthly-data"></div>
+
+        <button type="submit">Save</button>
+        <button type="button" id="delete-btn">Delete</button>
+      </form>
+    </main>
+  </div>
+
+  <!-- Load your modular Firebase logic -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
