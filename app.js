@@ -1,6 +1,6 @@
-// Firebase imports (modular syntax)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.3.1/firebase-app.js";
-import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.3.1/firebase-firestore.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.3.1/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.3.1/firebase-auth.js";
 
 // Firebase config
 const firebaseConfig = {
@@ -12,14 +12,97 @@ const firebaseConfig = {
   appId: "1:1011321736820:web:4fd73f3447230aba858b21"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
 
-// App logic
-let publishers = [];
-let currentIndex = 0;
+const editors = [
+  "oowonta@gmail.com",
+  "owontakingsley7@gmail.com",
+  "kowonta@gmail.com"
+];
+
 const months = ["September","October","November","December","January","February","March","April","May","June","July","August"];
+
+let publisherRecords = {};
+let currentYear = "2024-2025";
+let currentIndex = 0;
+
+function switchServiceYear() {
+  currentYear = document.getElementById("service-year-selector").value;
+  if (!publisherRecords[currentYear]) {
+    publisherRecords[currentYear] = [];
+  }
+  displayList();
+  document.getElementById("record-view").style.display = "none";
+}
+
+function showAppView() {
+  document.getElementById("login-form").style.display = "none";
+  document.getElementById("app").style.display = "flex";
+}
+
+function login() {
+  const email = document.getElementById("email").value.trim().toLowerCase();
+  const password = document.getElementById("password").value;
+  const statusEl = document.getElementById("login-status");
+  const loginBtn = document.getElementById("login-btn");
+
+  if (!email || !password) {
+    statusEl.textContent = "Please enter both email and password.";
+    statusEl.style.color = "red";
+    return;
+  }
+
+  loginBtn.disabled = true;
+  statusEl.textContent = "Logging in...";
+  statusEl.style.color = "black";
+
+  signInWithEmailAndPassword(auth, email, password)
+    .then(userCredential => {
+      const user = userCredential.user;
+      statusEl.textContent = `Logged in as ${user.email}`;
+      statusEl.style.color = "green";
+      checkEditorAccess(user.email);
+      showAppView();
+    })
+    .catch(error => {
+      statusEl.textContent = "Login failed: " + error.message;
+      statusEl.style.color = "red";
+    })
+    .finally(() => {
+      loginBtn.disabled = false;
+    });
+}
+
+function signUp() {
+  const email = document.getElementById("signup-email").value.trim().toLowerCase();
+  const password = document.getElementById("signup-password").value;
+
+  if (!editors.includes(email)) {
+    document.getElementById("login-status").textContent = "Sign-up denied: Not an authorized editor.";
+    return;
+  }
+
+  createUserWithEmailAndPassword(auth, email, password)
+    .then(userCredential => {
+      const user = userCredential.user;
+      document.getElementById("login-status").textContent = `Account created for ${user.email}`;
+      checkEditorAccess(user.email);
+      showAppView();
+    })
+    .catch(error => {
+      document.getElementById("login-status").textContent = "Sign-up failed: " + error.message;
+    });
+}
+
+function checkEditorAccess(email) {
+  const isEditor = editors.includes(email);
+  document.querySelectorAll("input, select, button[type='submit'], #delete-btn").forEach(el => {
+    el.disabled = !isEditor;
+  });
+  document.querySelector("button[onclick='createNewRecord()']").style.display = isEditor ? "inline-block" : "none";
+}
 
 function loadCSV(event) {
   const file = event.target.files[0];
@@ -28,7 +111,7 @@ function loadCSV(event) {
     const text = e.target.result;
     const lines = text.trim().split("\n");
     const headers = lines[0].split(",");
-    publishers = lines.slice(1).map(line => {
+    const records = lines.slice(1).map(line => {
       const values = line.split(",");
       const record = {};
       headers.forEach((header, i) => record[header.trim()] = values[i]?.trim());
@@ -43,7 +126,8 @@ function loadCSV(event) {
       });
       return record;
     });
-    localStorage.setItem("publishersData", JSON.stringify(publishers));
+    publisherRecords[currentYear] = records;
+    localStorage.setItem("publisherRecords", JSON.stringify(publisherRecords));
     displayList();
     loadRecord(0);
   };
@@ -53,10 +137,15 @@ function loadCSV(event) {
 function displayList() {
   const list = document.getElementById("publisher-list");
   list.innerHTML = "";
-  publishers.forEach((p, i) => {
+  const pubs = publisherRecords[currentYear] || [];
+  pubs.forEach((p, i) => {
     const li = document.createElement("li");
     li.textContent = p.Name || p.name || `Publisher ${i+1}`;
-    li.onclick = () => loadRecord(i);
+    li.onclick = () => {
+      document.querySelectorAll("#publisher-list li").forEach(el => el.classList.remove("selected"));
+      li.classList.add("selected");
+      loadRecord(i);
+    };
     list.appendChild(li);
   });
 }
@@ -65,7 +154,8 @@ function filterPublishers() {
   const query = document.getElementById("search-bar").value.toLowerCase();
   const list = document.getElementById("publisher-list");
   list.innerHTML = "";
-  publishers.forEach((p, i) => {
+  const pubs = publisherRecords[currentYear] || [];
+  pubs.forEach((p, i) => {
     const name = p.Name || p.name || `Publisher ${i+1}`;
     if (name.toLowerCase().includes(query)) {
       const li = document.createElement("li");
@@ -77,129 +167,165 @@ function filterPublishers() {
 }
 
 function loadRecord(index) {
+  document.getElementById("record-view").style.display = "flex";
   currentIndex = index;
-  const pub = publishers[index];
+  const pub = publisherRecords[currentYear][index];
   const form = document.getElementById("record-form");
-  form.name.value = pub.Name || pub.name || "";
-  form.gender.value = pub.Gender || pub.gender || "";
-  form.dob.value = pub.DateOfBirth || pub.dob || "";
-  form.dop.value = pub.DateOfBaptism || pub.dop || "";
-  form.role.value = pub.Role || pub.role || "";
-  const monthlyDiv = document.getElementById("monthly-data");
-  monthlyDiv.innerHTML = "";
+
+  form.name.value = pub.name || "";
+  form.gender.value = pub.gender || "";
+  form.dob.value = pub.dob || "";
+  form.dop.value = pub.dop || "";
+  form.role.value = pub.role || "";
+
+  const monthlyContainer = document.getElementById("monthly-data");
+  monthlyContainer.innerHTML = "";
+
   months.forEach(month => {
-    const m = pub[month] || {};
-    monthlyDiv.innerHTML += `
-      <div class="month">
-        <strong>${month}</strong><br/>
-        Shared in Ministry: <input type="checkbox" name="${month}_shared" ${m.shared === "Yes" ? "checked" : ""}/><br/>
-        Bible Studies: <input type="number" name="${month}_studies" value="${m.studies || ""}"/><br/>
-        Auxiliary Pioneer: <input type="checkbox" name="${month}_pioneer" ${m.pioneer === "Yes" ? "checked" : ""}/><br/>
-        Hours: <input type="number" name="${month}_hours" value="${m.hours || ""}"/><br/>
-        Remarks: <input type="text" name="${month}_remarks" value="${m.remarks || ""}"/><br/>
-      </div>`;
+    const data = pub[month] || {};
+    const section = document.createElement("section");
+    section.className = "month-record";
+    section.innerHTML = `
+      <h3>${month}</h3>
+      <div class="month-grid">
+        <label><input type="checkbox" name="${month}_shared" ${data.shared === "on" ? "checked" : ""} /> Shared in Ministry</label>
+        <label><input type="checkbox" name="${month}_pioneer" ${data.pioneer === "on" ? "checked" : ""} /> Auxiliary Pioneer</label>
+        <label>Studies: <input type="number" name="${month}_studies" value="${data.studies || ""}" min="0" /></label>
+        <label>Hours: <input type="number" name="${month}_hours" value="${data.hours || ""}" min="0" /></label>
+        <label>Return Visits: <input type="number" name="${month}_visits" value="${data.visits || ""}" min="0" /></label>
+        <label>Remarks: <input type="text" name="${month}_remarks" value="${data.remarks || ""}" /></label>
+      </div>
+    `;
+    monthlyContainer.appendChild(section);
   });
 }
 
-function saveRecord(e) {
-  e.preventDefault();
+function saveRecord(event) {
+  event.preventDefault();
   const form = document.getElementById("record-form");
-  const pub = publishers[currentIndex];
-
-  pub.Name = form.name.value;
-  pub.gender = form.gender.value;
-  pub.dob = form.dob.value;
-  pub.dop = form.dop.value;
-  pub.role = form.role.value;
+  const pub = {
+    name: form.name.value,
+    gender: form.gender.value,
+    dob: form.dob.value,
+    dop: form.dop.value,
+    role: form.role.value
+  };
 
   months.forEach(month => {
     pub[month] = {
-      shared: form[`${month}_shared`].checked ? "Yes" : "No",
+      shared: form[`${month}_shared`].checked ? "on" : "",
+      pioneer: form[`${month}_pioneer`].checked ? "on" : "",
       studies: form[`${month}_studies`].value,
-      pioneer: form[`${month}_pioneer`].checked ? "Yes" : "No",
       hours: form[`${month}_hours`].value,
-      remarks: form[`${month}_remarks`].value
+      visits: form[`${month}_visits`].value,
+     remarks: form[`${month}_remarks`].value
     };
   });
 
-  localStorage.setItem("publishersData", JSON.stringify(publishers));
+  publisherRecords[currentYear][currentIndex] = pub;
+  localStorage.setItem("publisherRecords", JSON.stringify(publisherRecords));
   displayList();
-  alert("✅ Record saved locally.");
-
-  const firestoreData = {
-    name: pub.Name,
-    gender: pub.gender,
-    dateOfBirth: pub.dob,
-    dateOfBaptism: pub.dop,
-    role: pub.role,
-    monthly: {},
-    timestamp: serverTimestamp()
-  };
-
-  months.forEach(month => {
-    firestoreData.monthly[month] = { ...pub[month] };
-  });
-
-  addDoc(collection(db, "publishers"), firestoreData)
-    .then((docRef) => {
-      console.log("✅ Record saved to Firestore with ID:", docRef.id);
-      alert("✅ Record saved to Firestore!");
-    })
-    .catch((error) => {
-      console.error("❌ Error saving to Firestore:", error);
-      alert("⚠️ Failed to save to Firestore. Record saved locally only.");
-    });
+  alert("Record saved!");
 }
 
-window.onload = function() {
-  const saved = localStorage.getItem("publishersData");
-  if (saved) {
-    publishers = JSON.parse(saved);
-    displayList();
-    loadRecord(0);
-  }
-  document.getElementById("delete-btn").addEventListener("click", deleteRecord);
-};
-
+// 🆕 Create New Record
 function createNewRecord() {
-  const newRecord = {
-    Name: "",
-    Gender: "Male",
-    DateOfBirth: "",
-    DateOfBaptism: "",
-    Role: "None"
+  const newPub = {
+    name: "",
+    gender: "",
+    dob: "",
+    dop: "",
+    role: ""
   };
   months.forEach(month => {
-    newRecord[month] = {
-      shared: "No",
+    newPub[month] = {
+      shared: "",
       studies: "",
-      pioneer: "No",
+      pioneer: "",
       hours: "",
+      visits: "",
       remarks: ""
     };
   });
-  publishers.push(newRecord);
-  currentIndex = publishers.length - 1;
-  displayList();
+  if (!publisherRecords[currentYear]) {
+    publisherRecords[currentYear] = [];
+  }
+  publisherRecords[currentYear].push(newPub);
+  currentIndex = publisherRecords[currentYear].length - 1;
   loadRecord(currentIndex);
+  displayList();
 }
 
-function deleteRecord() {
-  if (publishers.length === 0) return;
-  const confirmed = confirm("Are you sure you want to delete this publisher?");
-  if (!confirmed) return;
-  publishers.splice(currentIndex, 1);
-  localStorage.setItem("publishersData", JSON.stringify(publishers));
-  currentIndex = Math.max(0, currentIndex - 1);
-  displayList();
-  if (publishers.length > 0) {
-    loadRecord(currentIndex);
-  } else {
-    document.getElementById("record-form").reset();
-    document.getElementById("monthly-data").innerHTML = "";
+// 🗑️ Delete Record
+document.getElementById("delete-btn").addEventListener("click", () => {
+  if (confirm("Are you sure you want to delete this record?")) {
+    publisherRecords[currentYear].splice(currentIndex, 1);
+    localStorage.setItem("publisherRecords", JSON.stringify(publisherRecords));
+    displayList();
+    if (publisherRecords[currentYear].length > 0) {
+      loadRecord(0);
+    } else {
+      document.getElementById("record-form").reset();
+      document.getElementById("monthly-data").innerHTML = "";
+      document.getElementById("record-view").style.display = "none";
+    }
   }
+});
+
+// ❌ Close Record View
+function closeRecord() {
+  document.getElementById("record-view").style.display = "none";
+  document.querySelectorAll("#publisher-list li").forEach(el => el.classList.remove("selected"));
 }
+
+// 🔁 Load from localStorage on page load
+window.onload = () => {
+  const saved = localStorage.getItem("publisherRecords");
+  if (saved) {
+    publisherRecords = JSON.parse(saved);
+  }
+  const selector = document.getElementById("service-year-selector");
+  currentYear = selector.value;
+  if (!publisherRecords[currentYear]) {
+    publisherRecords[currentYear] = [];
+  }
+  displayList();
+};
+
+// 🔗 Expose functions globally
+window.login = login;
+window.signUp = signUp;
+window.createNewRecord = createNewRecord;
 window.saveRecord = saveRecord;
 window.loadCSV = loadCSV;
 window.filterPublishers = filterPublishers;
-window.createNewRecord = createNewRecord;
+window.switchServiceYear = switchServiceYear;
+function addNewServiceYear() {
+  const input = document.getElementById("new-year-input");
+  const year = input.value.trim();
+  const selector = document.getElementById("service-year-selector");
+
+  if (!year.match(/^\d{4}-\d{4}$/)) {
+    alert("Please enter a valid format like 2026-2027");
+    return;
+  }
+
+  if ([...selector.options].some(opt => opt.value === year)) {
+    alert("That service year already exists.");
+    return;
+  }
+
+  const option = document.createElement("option");
+  option.value = year;
+  option.textContent = year;
+  selector.appendChild(option);
+
+  publisherRecords[year] = [];
+  selector.value = year;
+  switchServiceYear();
+
+  input.value = "";
+}
+
+// 🔗 Expose globally so HTML can access it
+window.addNewServiceYear = addNewServiceYear;

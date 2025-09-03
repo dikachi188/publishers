@@ -5,38 +5,63 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Publisher Record Cards</title>
   <link rel="stylesheet" href="styles.css" />
-
-  <!-- Firebase Modular SDKs are imported in app.js -->
 </head>
 <body>
   <header class="top-bar">
     <div class="header-content">
-      
       <h1>Congregation Publisher Records</h1>
     </div>
   </header>
 
-  <div class="container">
+  <!-- 🔐 Login Section -->
+  <div id="login-form">
+    <h3>Login</h3>
+    <input type="email" id="email" placeholder="Email" />
+    <input type="password" id="password" placeholder="Password" />
+    <button id="login-btn" onclick="login()">Login</button>
+
+    <h3>Sign Up</h3>
+    <input type="email" id="signup-email" placeholder="Email">
+    <input type="password" id="signup-password" placeholder="Password">
+    <button onclick="signUp()">Sign Up</button>
+
+    <p id="login-status"></p>
+  </div>
+
+  <!-- 📋 Main App Section -->
+  <div class="container" id="app" style="display: none;">
     <aside class="sidebar">
       <h2>Publishers</h2>
+
+      <!-- 🗓️ Service Year Selector -->
+      <label for="service-year-selector">Service Year:</label>
+      <select id="service-year-selector" onchange="switchServiceYear()">
+        <option value="2024-2025">2024–2025</option>
+        <option value="2025-2026">2025–2026</option>
+
+      </select>
+<div class="new-year-group">
+  <input type="text" id="new-year-input" placeholder="Add new year (e.g. 2026-2027)" />
+  <button onclick="addNewServiceYear()">Add Year</button>
+</div>
       <input type="file" accept=".csv" onchange="loadCSV(event)" />
       <input type="text" id="search-bar" placeholder="Search by name..." oninput="filterPublishers()" />
       <button onclick="createNewRecord()">New Publisher</button>
       <ul id="publisher-list"></ul>
     </aside>
 
-    <main class="record-card" id="record-view">
-      <h2>Publisher Record</h2>
+    <main class="record-card" id="record-view" style="display: none;">
       <form id="record-form" onsubmit="saveRecord(event)">
+        <h2>Publisher Record</h2>
         <div class="personal-info">
-          <label>Name: <input type="text" name="name" /></label>
+          <label>Name: <input type="text" name="name" required /></label>
           <label>Gender:
-            <select name="gender">
+            <select name="gender" required>
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </select>
           </label>
-          <label>Date of Birth: <input type="date" name="dob" /></label>
+          <label>Date of Birth: <input type="date" name="dob" required /></label>
           <label>Date of Baptism: <input type="date" name="dop" /></label>
           <label>Role:
             <select name="role">
@@ -52,13 +77,15 @@
 
         <div id="monthly-data"></div>
 
-        <button type="submit">Save</button>
-        <button type="button" id="delete-btn">Delete</button>
+        <div class="button-group">
+          <button type="submit" class="save">Save</button>
+          <button type="button" id="delete-btn" class="delete">Delete</button>
+          <button type="button" class="close" onclick="closeRecord()">Close</button>
+        </div>
       </form>
     </main>
   </div>
 
-  <!-- Load your modular Firebase logic -->
   <script type="module" src="app.js"></script>
 </body>
 </html>
