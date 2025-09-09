@@ -200,3 +200,44 @@ button.close {
 button.close:hover {
   background-color: #444;
 }
+@media screen and (max-width: 600px) {
+  .container {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #ddd;
+    padding: 15px;
+  }
+
+  .record-card {
+    width: 100%;
+    padding: 15px;
+  }
+
+  .button-group {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .month-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-info {
+    grid-template-columns: 1fr;
+  }
+
+  #login-form {
+    margin: 20px;
+    padding: 15px;
+  }
+
+  button, input, select {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}

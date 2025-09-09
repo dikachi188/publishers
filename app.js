@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.3.1/firebase-app.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.3.1/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.3.1/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.3.1/firebase-auth.js";
 
 // Firebase config
@@ -42,7 +42,7 @@ function showAppView() {
   document.getElementById("app").style.display = "flex";
 }
 
-function login() {
+async function login() {
   const email = document.getElementById("email").value.trim().toLowerCase();
   const password = document.getElementById("password").value;
   const statusEl = document.getElementById("login-status");
@@ -58,21 +58,31 @@ function login() {
   statusEl.textContent = "Logging in...";
   statusEl.style.color = "black";
 
-  signInWithEmailAndPassword(auth, email, password)
-    .then(userCredential => {
-      const user = userCredential.user;
-      statusEl.textContent = `Logged in as ${user.email}`;
-      statusEl.style.color = "green";
-      checkEditorAccess(user.email);
-      showAppView();
-    })
-    .catch(error => {
-      statusEl.textContent = "Login failed: " + error.message;
-      statusEl.style.color = "red";
-    })
-    .finally(() => {
-      loginBtn.disabled = false;
-    });
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    statusEl.textContent = `Logged in as ${user.email}`;
+    statusEl.style.color = "green";
+    checkEditorAccess(user.email);
+    showAppView();
+
+    const docRef = doc(db, "publishers", user.email);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+      publisherRecords = docSnap.data().serviceYears || {};
+    } else {
+      publisherRecords = {};
+    }
+
+    displayList();
+  } catch (error) {
+    statusEl.textContent = "Login failed: " + error.message;
+    statusEl.style.color = "red";
+  } finally {
+    loginBtn.disabled = false;
+  }
 }
 
 function signUp() {
@@ -104,10 +114,10 @@ function checkEditorAccess(email) {
   document.querySelector("button[onclick='createNewRecord()']").style.display = isEditor ? "inline-block" : "none";
 }
 
-function loadCSV(event) {
+async function loadCSV(event) {
   const file = event.target.files[0];
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = async function(e) {
     const text = e.target.result;
     const lines = text.trim().split("\n");
     const headers = lines[0].split(",");
@@ -127,7 +137,14 @@ function loadCSV(event) {
       return record;
     });
     publisherRecords[currentYear] = records;
-    localStorage.setItem("publisherRecords", JSON.stringify(publisherRecords));
+
+    const user = auth.currentUser;
+    if (user) {
+      await setDoc(doc(db, "publishers", user.email), {
+        serviceYears: publisherRecords
+      });
+    }
+
     displayList();
     loadRecord(0);
   };
@@ -200,36 +217,43 @@ function loadRecord(index) {
   });
 }
 
-function saveRecord(event) {
+async function saveRecord(event) {
   event.preventDefault();
   const form = document.getElementById("record-form");
   const pub = {
     name: form.name.value,
     gender: form.gender.value,
-    dob: form.dob.value,
-    dop: form.dop.value,
-    role: form.role.value
+  dob: form.dob.value,
+  dop: form.dop.value,
+  role: form.role.value
+};
+
+months.forEach(month => {
+  pub[month] = {
+    shared: form[`${month}_shared`].checked ? "on" : "",
+    pioneer: form[`${month}_pioneer`].checked ? "on" : "",
+    studies: form[`${month}_studies`].value,
+    hours: form[`${month}_hours`].value,
+    visits: form[`${month}_visits`].value,
+    remarks: form[`${month}_remarks`].value
   };
+});
 
-  months.forEach(month => {
-    pub[month] = {
-      shared: form[`${month}_shared`].checked ? "on" : "",
-      pioneer: form[`${month}_pioneer`].checked ? "on" : "",
-      studies: form[`${month}_studies`].value,
-      hours: form[`${month}_hours`].value,
-      visits: form[`${month}_visits`].value,
-     remarks: form[`${month}_remarks`].value
-    };
+publisherRecords[currentYear][currentIndex] = pub;
+displayList();
+
+// 🔥 Save to Firestore
+const user = auth.currentUser;
+if (user) {
+  await setDoc(doc(db, "publishers", user.email), {
+    serviceYears: publisherRecords
   });
-
-  publisherRecords[currentYear][currentIndex] = pub;
-  localStorage.setItem("publisherRecords", JSON.stringify(publisherRecords));
-  displayList();
-  alert("Record saved!");
 }
 
-// 🆕 Create New Record
-function createNewRecord() {
+   alert("Record saved!");
+  }
+
+  function createNewRecord() {
   const newPub = {
     name: "",
     gender: "",
@@ -237,6 +261,7 @@ function createNewRecord() {
     dop: "",
     role: ""
   };
+
   months.forEach(month => {
     newPub[month] = {
       shared: "",
@@ -247,59 +272,17 @@ function createNewRecord() {
       remarks: ""
     };
   });
+
   if (!publisherRecords[currentYear]) {
     publisherRecords[currentYear] = [];
   }
+
   publisherRecords[currentYear].push(newPub);
   currentIndex = publisherRecords[currentYear].length - 1;
   loadRecord(currentIndex);
   displayList();
 }
 
-// 🗑️ Delete Record
-document.getElementById("delete-btn").addEventListener("click", () => {
-  if (confirm("Are you sure you want to delete this record?")) {
-    publisherRecords[currentYear].splice(currentIndex, 1);
-    localStorage.setItem("publisherRecords", JSON.stringify(publisherRecords));
-    displayList();
-    if (publisherRecords[currentYear].length > 0) {
-      loadRecord(0);
-    } else {
-      document.getElementById("record-form").reset();
-      document.getElementById("monthly-data").innerHTML = "";
-      document.getElementById("record-view").style.display = "none";
-    }
-  }
-});
-
-// ❌ Close Record View
-function closeRecord() {
-  document.getElementById("record-view").style.display = "none";
-  document.querySelectorAll("#publisher-list li").forEach(el => el.classList.remove("selected"));
-}
-
-// 🔁 Load from localStorage on page load
-window.onload = () => {
-  const saved = localStorage.getItem("publisherRecords");
-  if (saved) {
-    publisherRecords = JSON.parse(saved);
-  }
-  const selector = document.getElementById("service-year-selector");
-  currentYear = selector.value;
-  if (!publisherRecords[currentYear]) {
-    publisherRecords[currentYear] = [];
-  }
-  displayList();
-};
-
-// 🔗 Expose functions globally
-window.login = login;
-window.signUp = signUp;
-window.createNewRecord = createNewRecord;
-window.saveRecord = saveRecord;
-window.loadCSV = loadCSV;
-window.filterPublishers = filterPublishers;
-window.switchServiceYear = switchServiceYear;
 function addNewServiceYear() {
   const input = document.getElementById("new-year-input");
   const year = input.value.trim();
@@ -326,6 +309,16 @@ function addNewServiceYear() {
 
   input.value = "";
 }
-
-// 🔗 Expose globally so HTML can access it
+  // 🔗 Expose functions globally so HTML can access them
+window.login = login;
+window.signUp = signUp;
+window.switchServiceYear = switchServiceYear;
+window.loadCSV = loadCSV;
+window.displayList = displayList;
+window.filterPublishers = filterPublishers;
+window.loadRecord = loadRecord;
+window.saveRecord = saveRecord;
+window.checkEditorAccess = checkEditorAccess;
+window.createNewRecord = createNewRecord;
 window.addNewServiceYear = addNewServiceYear;
+window.closeRecord = closeRecord;
