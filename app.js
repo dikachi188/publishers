@@ -283,6 +283,51 @@ if (user) {
   displayList();
 }
 
+function closeRecord() {
+  document.getElementById("record-view").style.display = "none";
+}
+async function deleteRecord() {
+  if (!confirm("Are you sure you want to delete this record?")) return;
+
+  if (
+    !publisherRecords[currentYear] ||
+    currentIndex < 0 ||
+    currentIndex >= publisherRecords[currentYear].length
+  ) {
+    alert("No valid record selected to delete.");
+    return;
+  }
+  console.log("🧨 Delete button clicked");
+
+  // Remove the record
+  publisherRecords[currentYear].splice(currentIndex, 1);
+  displayList();
+
+  // Save to Firestore
+  const user = auth.currentUser;
+  if (user) {
+    try {
+      await setDoc(doc(db, "publishers", user.email), {
+        serviceYears: publisherRecords
+      });
+      console.log("✅ Record deleted and saved.");
+    } catch (error) {
+      console.error("❌ Firestore save failed:", error);
+    }
+  }
+
+  // Hide the record view
+  document.getElementById("record-view").style.display = "none";
+
+  // Show feedback
+  const statusEl = document.getElementById("save-status");
+  statusEl.textContent = "Record deleted!";
+  statusEl.style.color = "red";
+  setTimeout(() => {
+    statusEl.textContent = "";
+  }, 4000);
+}
+
 function addNewServiceYear() {
   const input = document.getElementById("new-year-input");
   const year = input.value.trim();
@@ -322,3 +367,4 @@ window.checkEditorAccess = checkEditorAccess;
 window.createNewRecord = createNewRecord;
 window.addNewServiceYear = addNewServiceYear;
 window.closeRecord = closeRecord;
+window.deleteRecord = deleteRecord;
