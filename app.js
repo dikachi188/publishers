@@ -368,3 +368,62 @@ window.createNewRecord = createNewRecord;
 window.addNewServiceYear = addNewServiceYear;
 window.closeRecord = closeRecord;
 window.deleteRecord = deleteRecord;
+function exportCSV() {
+  const records = publisherRecords[currentYear];
+  if (!records || records.length === 0) {
+    alert("No records to export.");
+    return;
+  }
+
+  const headers = ["name", "gender", "dob", "dop", "role"];
+  const monthFields = ["shared", "pioneer", "studies", "hours", "visits", "remarks"];
+  months.forEach(month => {
+    monthFields.forEach(field => headers.push(`${month}_${field}`));
+  });
+
+  const rows = records.map(pub => {
+    const row = [
+      pub.name,
+      pub.gender,
+      pub.dob,
+      pub.dop,
+      pub.role
+    ];
+    months.forEach(month => {
+      const data = pub[month] || {};
+      monthFields.forEach(field => row.push(data[field] || ""));
+    });
+    return row.join(",");
+  });
+
+  const csvContent = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${currentYear}_publishers.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+window.exportCSV = exportCSV;
+//time stamp//
+const timestamp = new Date().toISOString().split("T")[0];
+a.download = `${currentYear}_publishers_${timestamp}.csv`;
+function autoCreateServiceYear() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0 = Jan, 8 = Sep
+//service year auto roll over
+  if (month >= 8) {
+    const nextYear = `${year}-${year + 1}`;
+    if (!publisherRecords[nextYear]) {
+      publisherRecords[nextYear] = [];
+      const selector = document.getElementById("service-year-selector");
+      const option = document.createElement("option");
+      option.value = nextYear;
+      option.textContent = nextYear;
+      selector.appendChild(option);
+    }
+  }
+}
